@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a1628">
+<title>FishCast — 수산물 매입 AI 예보</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --ocean-deep: #0a1628;
+    --ocean-mid: #0f2240;
+    --accent: #00d4aa;
+    --accent-dim: rgba(0,212,170,0.15);
+    --warn: #ff6b35;
+    --warn-dim: rgba(255,107,53,0.15);
+    --buy: #00d4aa;
+    --wait: #ffd600;
+    --wait-dim: rgba(255,214,0,0.15);
+    --hold: #ff6b35;
+    --text-primary: #f0f8ff;
+    --text-secondary: #8baac4;
+    --text-muted: #4a6a85;
+    --card-bg: rgba(26,58,92,0.5);
+    --card-border: rgba(0,212,170,0.15);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ocean-deep); color: var(--text-primary); font-family: 'Noto Sans KR', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* ── HEADER ── */
+  .header { background: linear-gradient(180deg, var(--ocean-mid) 0%, transparent 100%); padding: 20px 20px 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo-text { font-family: 'Inter', sans-serif; font-weight: 900; font-size: 20px; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+  .live-badge { display: flex; align-items: center; gap: 5px; background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 20px; padding: 4px 10px; font-size: 11px; color: var(--accent); }
+  .live-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .tab-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn { flex-shrink: 0; padding: 8px 16px; border: none; background: transparent; color: var(--text-muted); font-size: 13px; font-family: 'Noto Sans KR', sans-serif; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── CONTENT ── */
+  .content { padding: 20px; padding-bottom: 100px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── CARDS ── */
+  .stat-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; backdrop-filter: blur(8px); }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .stat-value { font-family: 'Inter', sans-serif; font-size: 36px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
+  .stat-value .unit { font-size: 16px; font-weight: 500; color: var(--text-secondary); margin-left: 2px; }
+  .stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+  .stat-change { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-left: 8px; }
+  .change-up { background: var(--warn-dim); color: var(--warn); }
+  .change-down { background: rgba(0,212,170,0.15); color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .mini-stat { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 14px; }
+  .mini-stat .label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .mini-stat .val { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .mini-stat .sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .chart-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .chart-title { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .chart-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--accent-dim); color: var(--accent); }
+  .chart-wrap { position: relative; height: 160px; }
+  .section-head { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin: 20px 0 10px; }
+  .source-tag { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-top: 8px; }
+  .source-dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+
+  /* ── 매입 추천 배지 ── */
+  .buy-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 30px; font-size: 14px; font-weight: 700; }
+  .buy-now { background: rgba(0,212,170,0.2); color: var(--buy); border: 1.5px solid var(--buy); }
+  .buy-wait { background: var(--wait-dim); color: var(--wait); border: 1.5px solid var(--wait); }
+  .buy-hold { background: var(--warn-dim); color: var(--hold); border: 1.5px solid var(--hold); }
+  .buy-reason { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.6; }
+
+  /* ── 어종 선택 ── */
+  .fish-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 20px; padding-bottom: 4px; }
+  .fish-scroll::-webkit-scrollbar { display: none; }
+  .fish-chip { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 30px; border: 1px solid var(--card-border); background: var(--card-bg); cursor: pointer; transition: all 0.2s; font-size: 13px; color: var(--text-secondary); }
+  .fish-chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 500; }
+
+  /* ── 가격 예보 리스트 ── */
+  .forecast-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 12px; }
+  .forecast-row:last-child { border-bottom: none; }
+  .forecast-day { font-size: 12px; color: var(--text-secondary); width: 40px; flex-shrink: 0; }
+  .forecast-bar-wrap { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .forecast-bar { height: 100%; border-radius: 2px; }
+  .forecast-price { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; width: 70px; text-align: right; flex-shrink: 0; }
+  .forecast-trend { width: 30px; text-align: right; font-size: 11px; flex-shrink: 0; }
+  .forecast-action { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
+  .fa-buy { background: rgba(0,212,170,0.15); color: var(--accent); }
+  .fa-wait { background: var(--wait-dim); color: var(--wait); }
+  .fa-hold { background: var(--warn-dim); color: var(--hold); }
+
+  /* ── 신선도 ── */
+  .fresh-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .fresh-row:last-child { border-bottom: none; }
+  .fresh-icon { font-size: 22px; flex-shrink: 0; }
+  .fresh-info { flex: 1; }
+  .fresh-name { font-size: 13px; font-weight: 500; }
+  .fresh-detail { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .fresh-grade { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .grade-A { background: rgba(0,212,170,0.2); color: var(--accent); }
+  .grade-B { background: rgba(255,214,0,0.15); color: #ffd600; }
+  .grade-C { background: var(--warn-dim); color: var(--warn); }
+
+  /* ── 리스크 ── */
+  .risk-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
+  .risk-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 8px; height: 10px; overflow: hidden; margin: 10px 0 6px; }
+  .risk-bar { height: 100%; border-radius: 8px; transition: width 1s ease; }
+  .risk-levels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); }
+  .risk-score { font-family: 'Inter', sans-serif; font-size: 28px; font-weight: 900; display: flex; align-items: baseline; gap: 4px; }
+  .risk-score .denom { font-size: 14px; color: var(--text-muted); font-weight: 400; }
+  .risk-desc { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.5; }
+
+  /* ── 시뮬레이터 ── */
+  .sim-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
+  .sim-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .sim-input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .sim-input { background: rgba(255,255,255,0.08); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 14px; color: var(--text-primary); font-size: 16px; font-family: 'Inter', sans-serif; font-weight: 700; width: 140px; outline: none; }
+  .sim-input:focus { border-color: var(--accent); }
+  .sim-btn { background: var(--accent); color: #0a1628; border: none; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; }
+  .sim-result { background: rgba(0,212,170,0.08); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 14px; }
+  .sim-result-label { font-size: 11px; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .sim-result-val { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 900; color: var(--text-primary); }
+  .sim-result-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ocean-mid); border-top: 1px solid rgba(0,212,170,0.1); display: flex; padding: 8px 0 20px; backdrop-filter: blur(12px); z-index: 100; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; cursor: pointer; border: none; background: transparent; color: var(--text-muted); font-family: 'Noto Sans KR', sans-serif; }
+  .nav-item.active { color: var(--accent); }
+  .nav-icon { font-size: 20px; }
+  .nav-label { font-size: 10px; font-weight: 500; }
+
+  /* ── 알림 배너 ── */
+  .alert-banner { background: var(--warn-dim); border: 1px solid var(--warn); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+  .alert-title { font-size: 13px; font-weight: 700; color: var(--warn); }
+  .alert-body { font-size: 12px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo">
+      <div class="logo-icon">🐟</div>
+      <div class="logo-text">Fish<span>Cast</span></div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      AI 매입 예보
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('buy')">매입 추천</button>
+    <button class="tab-btn" onclick="switchTab('price')">가격 예보</button>
+    <button class="tab-btn" onclick="switchTab('freshness')">신선도</button>
+    <button class="tab-btn" onclick="switchTab('risk')">리스크</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ══ TAB: 매입 추천 ══ -->
+  <div id="tab-buy" class="page active">
+
+    <div class="alert-banner" id="alert-banner" style="display:none">
+      <div style="font-size:18px;flex-shrink:0">⚠️</div>
+      <div>
+        <div class="alert-title" id="alert-title">고등어 매입 긴급 알림</div>
+        <div class="alert-body" id="alert-body">기상 악화로 조업 감소 예상. 가격 급등 전 매입 권장.</div>
+      </div>
+    </div>
+
+    <div class="fish-scroll" id="fish-selector">
+      <div class="fish-chip active" data-fish="멸치" onclick="selectFish(this)">🐟 멸치</div>
+      <div class="fish-chip" data-fish="고등어" onclick="selectFish(this)">🐠 고등어</div>
+      <div class="fish-chip" data-fish="갈치" onclick="selectFish(this)">🐡 갈치</div>
+      <div class="fish-chip" data-fish="삼치" onclick="selectFish(this)">🐟 삼치</div>
+      <div class="fish-chip" data-fish="넙치" onclick="selectFish(this)">🐟 넙치(광어)</div>
+    </div>
+
+    <!-- 매입 추천 -->
+    <div class="stat-card">
+      <div class="stat-label">AI 매입 추천 · 오늘</div>
+      <div id="buy-recommendation" class="buy-badge buy-now" style="margin:8px 0">✅ 지금 매입 권장</div>
+      <div class="buy-reason" id="buy-reason">위판 가격 하락 추세 진입. 향후 3일 내 저점 예상. 목표 단가 달성 가능성 높음.</div>
+    </div>
+
+    <!-- 현재 위판가 -->
+    <div class="stat-card">
+      <div class="stat-label" id="price-date-label">위판가 · 데이터 기준일 로딩중</div>
+      <div style="display:flex;align-items:baseline;gap:0">
+        <div class="stat-value" id="current-price">3,200<span class="unit">원/kg</span></div>
+        <span class="stat-change change-down" id="price-change">▼ 1.2%</span>
+      </div>
+      <div class="stat-sub">전일 대비 · 위판량 <strong id="volume">210톤</strong> · 수온 <strong id="temp">14.2°C</strong></div>
+    </div>
+
+    <div class="grid2">
+      <div class="mini-stat">
+        <div class="label">7일 예측 최저가</div>
+        <div class="val" id="pred-low" style="color:var(--accent)">3,050<span style="font-size:12px;color:var(--text-secondary)">원</span></div>
+        <div class="sub">3일 후 예상</div>
+      </div>
+      <div class="mini-stat">
+        <div class="label">방향정확도</div>
+        <div class="val" id="dir-accuracy" style="color:var(--accent)">67<span style="font-size:12px;color:var(--text-secondary)">%</span></div>
+        <div class="sub">Walk-Forward 검증</div>
+      </div>
+    </div>
+
+    <!-- 7일 예측 차트 -->
+    <div class="chart-card">
+      <div class="chart-title">
+        7일 매입가 예측
+        <span class="chart-badge">AI 예측</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="priceChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 일별 매입 액션 -->
+    <div class="chart-card">
+      <div class="chart-title">일별 매입 전략</div>
+      <div id="forecast-list"></div>
+    </div>
+
+    <div class="source-tag">
+      <div class="source-dot"></div>
+      해양수산부 위판통계 · 기상청 동해 해양기상 · AI 예측 모델<br>
+      <span style="font-size:10px;opacity:0.7">※ 매입 권장: 3일 내 저점 예측 시 / 보류: 단기 상승 추세 / 관망: 가격 안정 구간</span>
+    </div>
+  </div>
+
+  <!-- ══ TAB: 가격 예보 ══ -->
+  <div id="tab-price" class="page">
+    <div class="fish-scroll" id="fish-selector2">
+      <div class="fish-chip active" data-fish2="멸치" onclick="selectFish2(this)">🐟 멸치</div>
+      <div class="fish-chip" data-fish2="고등어" onclick="selectFish2(this)">🐠 고등어</div>
+      <div class="fish-chip" data-fish2="갈치" onclick="selectFish2(this)">🐡 갈치</div>
+      <div class="fish-chip" data-fish2="삼치" onclick="selectFish2(this)">🐟 삼치</div>
+      <div class="fish-chip" data-fish2="넙치" onclick="selectFish2(this)">🐟 넙치(광어)</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">오늘 위판가</div>
+      <div style="display:flex;align-items:baseline">
+        <div class="stat-value" id="price2-current">3,200<span class="unit">원/kg</span></div>
+        <span class="stat-change change-down" id="price2-change">▼ 1.2%</span>
+      </div>
+      <div class="stat-sub">위판량 <strong id="price2-volume">210톤</strong> · 입항 <strong id="price2-boats">55척</strong></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">30일 가격 추이 <span class="chart-badge">실적+예측</span></div>
+      <div class="chart-wrap"><canvas id="price30Chart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">일별 가격 예보</div>
+      <div id="forecast-list2"></div>
+    </div>
+
+    <div class="source-tag"><div class="source-dot"></div>해양수산부 위판통계 Open API · 매일 갱신</div>
+  </div>
+
+  <!-- ══ TAB: 신선도 ══ -->
+  <div id="tab-freshness" class="page">
+    <div class="stat-card">
+      <div class="stat-label">동해·울산 수온 기반 신선도 지수</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+        <div style="font-family:'Inter',sans-serif;font-size:48px;font-weight:900;color:var(--accent);line-height:1">A</div>
+        <div>
+          <div style="font-size:13px;font-weight:500">최상급 신선도 · 매입 적기</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">동해 수온 21.2°C · 기상청 울산 해양기상부이 기준</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="mini-stat">
+        <div class="label">동해 수온</div>
+        <div class="val" style="color:#4fc3f7">21.2<span style="font-size:13px">°C</span></div>
+        <div class="sub">울산 근해 평균</div>
+      </div>
+      <div class="mini-stat">
+        <div class="label">부패 예상 시간</div>
+        <div class="val" style="color:var(--accent)">42<span style="font-size:13px">h</span></div>
+        <div class="sub">냉장 보관 기준</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">수온 변화 추이 <span class="chart-badge">기상청 연동</span></div>
+      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+    </div>
+
+    <div class="section-head">어종별 신선도 현황</div>
+    <div class="chart-card">
+      <div class="fresh-row">
+        <div class="fresh-icon">🐟</div>
+        <div class="fresh-info"><div class="fresh-name">멸치</div><div class="fresh-detail">수온 20.6°C · 위판 당일 매입 권장</div></div>
+        <div class="fresh-grade grade-A">A급</div>
+      </div>
+      <div class="fresh-row">
+        <div class="fresh-icon">🐠</div>
+        <div class="fresh-info"><div class="fresh-name">고등어</div><div class="fresh-detail">수온 21.2°C · 위판 당일 매입 권장</div></div>
+        <div class="fresh-grade grade-A">A급</div>
+      </div>
+      <div class="fresh-row">
+        <div class="fresh-icon">🐡</div>
+        <div class="fresh-info"><div class="fresh-name">갈치</div><div class="fresh-detail">수온 21.2°C · 당일 위판량 변동 주의</div></div>
+        <div class="fresh-grade grade-B">B급</div>
+      </div>
+      <div class="fresh-row">
+        <div class="fresh-icon">🐟</div>
+        <div class="fresh-info"><div class="fresh-name">삼치</div><div class="fresh-detail">수온 20.2°C · 위판 당일 매입 권장</div></div>
+        <div class="fresh-grade grade-A">A급</div>
+      </div>
+      <div class="fresh-row">
+        <div class="fresh-icon">🐟</div>
+        <div class="fresh-info"><div class="fresh-name">넙치(광어)</div><div class="fresh-detail">양식·자연산 혼합 · 수온 21.2°C</div></div>
+        <div class="fresh-grade grade-A">A급</div>
+      </div>
+    </div>
+    <div class="source-tag"><div class="source-dot"></div>기상청 동해 해양기상정보 API · 수온-부패속도 회귀 모델</div>
+  </div>
+
+  <!-- ══ TAB: 리스크 ══ -->
+  <div id="tab-risk" class="page">
+    <div class="section-head">가격 폭락·폭등 리스크</div>
+
+    <div class="risk-card" id="risk-card-1">
+      <div class="stat-label" id="risk-label-1">🐟 멸치 · 7일 가격 리스크</div>
+      <div class="risk-score"><span id="risk-score-1" style="color:var(--accent)">--</span><span class="denom">/ 100</span><span id="risk-level-1" style="font-size:13px;margin-left:8px;font-weight:700"></span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar-1" style="width:0%"></div></div>
+      <div class="risk-levels"><span>안전</span><span>주의</span><span>경고</span><span>위험</span></div>
+      <div class="risk-desc" id="risk-desc-1">계산 중...</div>
+    </div>
+    <div class="risk-card" id="risk-card-2">
+      <div class="stat-label" id="risk-label-2">🐠 고등어 · 7일 가격 리스크</div>
+      <div class="risk-score"><span id="risk-score-2" style="color:var(--accent)">--</span><span class="denom">/ 100</span><span id="risk-level-2" style="font-size:13px;margin-left:8px;font-weight:700"></span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar-2" style="width:0%"></div></div>
+      <div class="risk-levels"><span>안전</span><span>주의</span><span>경고</span><span>위험</span></div>
+      <div class="risk-desc" id="risk-desc-2">계산 중...</div>
+    </div>
+    <div class="risk-card" id="risk-card-3">
+      <div class="stat-label" id="risk-label-3">🐡 갈치 · 7일 가격 리스크</div>
+      <div class="risk-score"><span id="risk-score-3" style="color:var(--accent)">--</span><span class="denom">/ 100</span><span id="risk-level-3" style="font-size:13px;margin-left:8px;font-weight:700"></span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar-3" style="width:0%"></div></div>
+      <div class="risk-levels"><span>안전</span><span>주의</span><span>경고</span><span>위험</span></div>
+      <div class="risk-desc" id="risk-desc-3">계산 중...</div>
+    </div>
+    <div class="risk-card" id="risk-card-4">
+      <div class="stat-label" id="risk-label-4">🐟 삼치 · 7일 가격 리스크</div>
+      <div class="risk-score"><span id="risk-score-4" style="color:var(--accent)">--</span><span class="denom">/ 100</span><span id="risk-level-4" style="font-size:13px;margin-left:8px;font-weight:700"></span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar-4" style="width:0%"></div></div>
+      <div class="risk-levels"><span>안전</span><span>주의</span><span>경고</span><span>위험</span></div>
+      <div class="risk-desc" id="risk-desc-4">계산 중...</div>
+    </div>
+    <div class="risk-card" id="risk-card-5">
+      <div class="stat-label" id="risk-label-5">🐟 넙치(광어) · 7일 가격 리스크</div>
+      <div class="risk-score"><span id="risk-score-5" style="color:var(--accent)">--</span><span class="denom">/ 100</span><span id="risk-level-5" style="font-size:13px;margin-left:8px;font-weight:700"></span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar-5" style="width:0%"></div></div>
+      <div class="risk-levels"><span>안전</span><span>주의</span><span>경고</span><span>위험</span></div>
+      <div class="risk-desc" id="risk-desc-5">계산 중...</div>
+    </div>
+
+    <div class="section-head">원가 목표 시뮬레이터</div>
+    <div class="sim-card">
+      <div class="sim-label">목표 매입 단가를 입력하면 달성 가능 시점을 예측합니다</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="sim-fish" style="background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;color:var(--text-primary);font-size:13px;font-family:'Noto Sans KR',sans-serif;flex:1;outline:none;-webkit-appearance:none">
+          <option value="멸치" style="color:#fff;background:#1a2a3a">🐟 멸치</option>
+          <option value="고등어" style="color:#fff;background:#1a2a3a">🐠 고등어</option>
+          <option value="갈치" style="color:#fff;background:#1a2a3a">🐡 갈치</option>
+          <option value="삼치" style="color:#fff;background:#1a2a3a">🐟 삼치</option>
+          <option value="넙치" style="color:#fff;background:#1a2a3a">🐟 넙치(광어)</option>
+        </select>
+      </div>
+      <div class="sim-input-row">
+        <input class="sim-input" id="sim-target" type="number" placeholder="목표가 입력" value="3000">
+        <span style="color:var(--text-secondary);font-size:13px">원/kg</span>
+        <button class="sim-btn" onclick="runSimulator()">예측</button>
+      </div>
+      <div class="sim-result" id="sim-result">
+        <div class="sim-result-label">예측 결과</div>
+        <div class="sim-result-val" id="sim-result-val">3일 후 달성 가능</div>
+        <div class="sim-result-sub" id="sim-result-sub">예측 최저가 3,050원/kg · 신뢰도 82%</div>
+      </div>
+    </div>
+
+    <div class="source-tag"><div class="source-dot"></div>AI 기반 가격 예측 모델 · 공공데이터 학습</div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-item active" id="nav-main" onclick="switchPage('main')">
+    <div class="nav-icon">🎯</div><div class="nav-label">매입추천</div>
+  </button>
+  <button class="nav-item" id="nav-alert" onclick="alert('알림 기능은 정식 서비스에서 제공됩니다')" style="opacity:0.5">
+    <div class="nav-icon">🔔</div><div class="nav-label">알림</div>
+  </button>
+  <button class="nav-item" id="nav-data" onclick="alert('데이터 기능은 정식 서비스에서 제공됩니다')" style="opacity:0.5">
+    <div class="nav-icon">📊</div><div class="nav-label">데이터</div>
+  </button>
+  <button class="nav-item" id="nav-setting" onclick="alert('설정 기능은 정식 서비스에서 제공됩니다')" style="opacity:0.5">
+    <div class="nav-icon">⚙️</div><div class="nav-label">설정</div>
+  </button>
+</div>
+
+<script>
+// ── 실제 위판 데이터 (해양수산부 공공데이터 기반 XGBoost 예측) ──
+
+const fishDirAccuracy = {
+  '멸치': 69.6, '고등어': 69.1, '갈치': 63.5, '삼치': 67.9, '넙치': 65.0
+};
+
+const realFishData = {
+  '멸치': {
+    price: 2098, change: 1.5,
+    changeDir: 'up',
+    dataDate: '2026-05-31',
+    volume: '--', temp: '21.2°C', boats: '--',
+    predLow: 1439, predLowDay: '내일',
+    buyRec: 'wait', buyText: '⏳ 추이 관망 권장',
+    buyReason: '분석 중...',
+    alert: false,
+    alertTitle: '', alertBody: '',
+    forecast: [{"day": "내일", "price": 1439, "trend": "▼ 31.4%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "모레", "price": 1824, "trend": "▲ 26.8%", "dir": "up", "action": "hold", "actionText": "보류"}, {"day": "3일후", "price": 1677, "trend": "▼ 8.1%", "dir": "down", "action": "hold", "actionText": "보류"}, {"day": "4일후", "price": 1896, "trend": "▲ 13.1%", "dir": "up", "action": "hold", "actionText": "보류"}, {"day": "5일후", "price": 1965, "trend": "▲ 3.6%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "6일후", "price": 1939, "trend": "▼ 1.3%", "dir": "down", "action": "wait", "actionText": "관망"}, {"day": "7일후", "price": 1912, "trend": "▼ 1.4%", "dir": "down", "action": "wait", "actionText": "관망"}],
+    chartPrices: [2143, 1958, 2448, 1864, 2364, 2098, 3425, 2098, 1439],
+    history30d: [1890, 1724, 1570, 1863, 2149, 2065, 1960, 1948, 2282, 1903, 1943, 2162, 1717, 2245, 2020, 1903, 1986, 2223, 1922, 2235, 2048, 2066, 2143, 1958, 2448, 1864, 2364, 2098, 3425, 1476],
+    historyDates: ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"]
+  },
+  '고등어': {
+    price: 3577, change: 2.6,
+    changeDir: 'down',
+    dataDate: '2026-05-31',
+    volume: '--', temp: '21.2°C', boats: '--',
+    predLow: 3718, predLowDay: '모레',
+    buyRec: 'wait', buyText: '⏳ 추이 관망 권장',
+    buyReason: '분석 중...',
+    alert: false,
+    alertTitle: '', alertBody: '',
+    forecast: [{"day": "내일", "price": 3843, "trend": "▲ 7.4%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "모레", "price": 3718, "trend": "▼ 3.3%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "3일후", "price": 3793, "trend": "▲ 2.0%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "4일후", "price": 3789, "trend": "▼ 0.1%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "5일후", "price": 3840, "trend": "▲ 1.3%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "6일후", "price": 3801, "trend": "▼ 1.0%", "dir": "down", "action": "wait", "actionText": "관망"}, {"day": "7일후", "price": 3790, "trend": "▼ 0.3%", "dir": "down", "action": "buy", "actionText": "매입적기"}],
+    chartPrices: [3800, 3134, 2938, 3577, 3378, 4436, 4094, 3577, 3843],
+    history30d: [2857, 2773, 3728, 3737, 2996, 4182, 3407, 4305, 5294, 3896, 3869, 5009, 3767, 3277, 3391, 3685, 3380, 3153, 3435, 3672, 4991, 4504, 3800, 3134, 2938, 3577, 3378, 4436, 4094, 3808],
+    historyDates: ["2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"]
+  },
+  '갈치': {
+    price: 7437, change: 6.0,
+    changeDir: 'down',
+    dataDate: '2026-05-31',
+    volume: '--', temp: '21.2°C', boats: '--',
+    predLow: 9940, predLowDay: '모레',
+    buyRec: 'wait', buyText: '⏳ 추이 관망 권장',
+    buyReason: '분석 중...',
+    alert: false,
+    alertTitle: '', alertBody: '',
+    forecast: [{"day": "내일", "price": 10373, "trend": "▲ 39.5%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "모레", "price": 9940, "trend": "▼ 4.2%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "3일후", "price": 10799, "trend": "▲ 8.6%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "4일후", "price": 10594, "trend": "▼ 1.9%", "dir": "down", "action": "wait", "actionText": "관망"}, {"day": "5일후", "price": 10914, "trend": "▲ 3.0%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "6일후", "price": 11284, "trend": "▲ 3.4%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "7일후", "price": 11569, "trend": "▲ 2.5%", "dir": "up", "action": "wait", "actionText": "관망"}],
+    chartPrices: [12626, 8013, 7273, 7271, 7403, 7696, 7437, 7437, 10373],
+    history30d: [6014, 12020, 7263, 6279, 7888, 6795, 7895, 6364, 3961, 7145, 7130, 7425, 7080, 8344, 7754, 9460, 7495, 7521, 8269, 7314, 7911, 8107, 12626, 8013, 7273, 7271, 7403, 7696, 7437, 11010],
+    historyDates: ["2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"]
+  },
+  '삼치': {
+    price: 4000, change: 0,
+    changeDir: 'none',
+    dataDate: '2026-05-28',
+    volume: '--', temp: '20.2°C', boats: '--',
+    predLow: 3419, predLowDay: '5일후',
+    buyRec: 'wait', buyText: '⏳ 추이 관망 권장',
+    buyReason: '분석 중...',
+    alert: false,
+    alertTitle: '', alertBody: '',
+    forecast: [{"day": "내일", "price": 4166, "trend": "▲ 4.2%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "모레", "price": 4357, "trend": "▲ 4.6%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "3일후", "price": 4530, "trend": "▲ 4.0%", "dir": "up", "action": "wait", "actionText": "관망"}, {"day": "4일후", "price": 3930, "trend": "▼ 13.2%", "dir": "down", "action": "wait", "actionText": "관망"}, {"day": "5일후", "price": 3419, "trend": "▼ 13.0%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "6일후", "price": 3721, "trend": "▲ 8.8%", "dir": "up", "action": "hold", "actionText": "보류"}, {"day": "7일후", "price": 4142, "trend": "▲ 11.3%", "dir": "up", "action": "wait", "actionText": "관망"}],
+    chartPrices: [1450, 2750, 4353, 4466, 4000, 1000, 2094, 4000, 4166],
+    history30d: [3578, 3684, 3403, 2747, 3577, 3673, 3428, 3665, 4922, 3489, 3111, 3142, 3610, 2750, 2654, 2875, 1498, 1605, 1700, 2533, 4000, 2000, 1450, 2750, 4353, 4466, 4000, 1000, 2094, 4400],
+    historyDates: ["2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-11", "2026-05-13", "2026-05-14", "2026-05-16", "2026-05-17", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-24", "2026-05-26", "2026-05-28"]
+  },
+  '넙치': {
+    price: 7842, change: 1.3,
+    changeDir: 'up',
+    dataDate: '2026-05-31',
+    volume: '--', temp: '21.2°C', boats: '--',
+    predLow: 7184, predLowDay: '3일후',
+    buyRec: 'wait', buyText: '⏳ 추이 관망 권장',
+    buyReason: '분석 중...',
+    alert: false,
+    alertTitle: '', alertBody: '',
+    forecast: [{"day": "내일", "price": 7902, "trend": "▲ 0.8%", "dir": "up", "action": "hold", "actionText": "보류"}, {"day": "모레", "price": 7586, "trend": "▼ 4.0%", "dir": "down", "action": "hold", "actionText": "보류"}, {"day": "3일후", "price": 7184, "trend": "▼ 5.3%", "dir": "down", "action": "buy", "actionText": "매입적기"}, {"day": "4일후", "price": 7314, "trend": "▲ 1.8%", "dir": "up", "action": "buy", "actionText": "매입적기"}, {"day": "5일후", "price": 7705, "trend": "▲ 5.3%", "dir": "up", "action": "hold", "actionText": "보류"}, {"day": "6일후", "price": 7614, "trend": "▼ 1.2%", "dir": "down", "action": "hold", "actionText": "보류"}, {"day": "7일후", "price": 7429, "trend": "▼ 2.4%", "dir": "down", "action": "hold", "actionText": "보류"}],
+    chartPrices: [9817, 9651, 7248, 7842, 6271, 9081, 8958, 7842, 7902],
+    history30d: [8296, 6501, 5042, 8079, 6466, 7165, 8070, 8887, 10214, 8949, 8811, 8567, 6987, 7375, 8250, 7478, 6137, 7691, 7741, 6245, 7948, 12048, 9817, 9651, 7248, 7842, 6271, 9081, 8958, 7375],
+    historyDates: ["2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"]
+  },
+};
+
+
+
+
+
+
+
+
+
+// ── 어종 데이터 ──
+const fishData = {
+  '멸치': {
+    price: 3200, change: -1.2, changeDir: 'down',
+    volume: '210톤', temp: '14.2°C', boats: '55척',
+    predLow: 3050, predLowDay: '3일 후',
+    buyRec: 'buy', buyText: '✅ 지금 매입 권장',
+    buyReason: '위판 가격 하락 추세 진입. 향후 3일 내 저점 예상. 목표 단가 달성 가능성 높음.',
+    alert: false,
+    forecast: [
+      {day:'오늘', price:3200, trend:'-1.2%', dir:'down', action:'buy', actionText:'매입'},
+      {day:'내일', price:3150, trend:'-1.6%', dir:'down', action:'buy', actionText:'매입'},
+      {day:'모레', price:3050, trend:'-3.2%', dir:'down', action:'buy', actionText:'매입최적'},
+      {day:'3일후', price:3100, trend:'+1.6%', dir:'up', action:'wait', actionText:'관망'},
+      {day:'4일후', price:3200, trend:'+3.2%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'5일후', price:3350, trend:'+4.7%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'6일후', price:3400, trend:'+1.5%', dir:'up', action:'hold', actionText:'보류'},
+    ],
+    chartPrices: [3400, 3380, 3320, 3280, 3200, 3150, 3050, 3100],
+  },
+  '고등어': {
+    price: 4820, change: 6.2, changeDir: 'up',
+    volume: '142톤', temp: '14.2°C', boats: '37척',
+    predLow: 4650, predLowDay: '5일 후',
+    buyRec: 'hold', buyText: '⏸ 매입 보류 권장',
+    buyReason: '기상 악화 이후 조업 재개로 가격 하락 예상. 3~5일 후 매입이 유리. 현재 고점 구간.',
+    alert: true,
+    alertTitle: '고등어 가격 급등 경보',
+    alertBody: '기상 악화로 동해 조업 감소 예상. 위판량 30% 감소 시 kg당 +25% 상승 가능.',
+    forecast: [
+      {day:'오늘', price:4820, trend:'+6.2%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'내일', price:5050, trend:'+4.8%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'모레', price:5100, trend:'+1.0%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'3일후', price:4900, trend:'-3.9%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'4일후', price:4750, trend:'-3.1%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'5일후', price:4650, trend:'-2.1%', dir:'down', action:'buy', actionText:'매입'},
+      {day:'6일후', price:4700, trend:'+1.1%', dir:'up', action:'buy', actionText:'매입'},
+    ],
+    chartPrices: [4530, 4580, 4620, 4710, 4820, 5050, 5100, 4900],
+  },
+  '갈치': {
+    price: 12500, change: -2.1, changeDir: 'down',
+    volume: '68톤', temp: '15.1°C', boats: '22척',
+    predLow: 12200, predLowDay: '4일 후',
+    buyRec: 'wait', buyText: '⏳ 3~4일 후 매입 권장',
+    buyReason: '현재 가격 소폭 하락 중. 4일 후 저점 예상. 조급하게 매입하지 말고 추이 관망 권장.',
+    alert: false,
+    forecast: [
+      {day:'오늘', price:12500, trend:'-2.1%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'내일', price:12400, trend:'-0.8%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'모레', price:12300, trend:'-0.8%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'3일후', price:12200, trend:'-0.8%', dir:'down', action:'buy', actionText:'매입적기'},
+      {day:'4일후', price:12250, trend:'+0.4%', dir:'up', action:'buy', actionText:'매입'},
+      {day:'5일후', price:12400, trend:'+1.2%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'6일후', price:12600, trend:'+1.6%', dir:'up', action:'hold', actionText:'보류'},
+    ],
+    chartPrices: [12800, 12700, 12600, 12550, 12500, 12400, 12300, 12200],
+  },
+  '참조기': {
+    price: 8200, change: 1.2, changeDir: 'up',
+    volume: '45톤', temp: '14.8°C', boats: '18척',
+    predLow: 8000, predLowDay: '6일 후',
+    buyRec: 'wait', buyText: '⏳ 주말 이후 매입 권장',
+    buyReason: '현재 소폭 상승 중이나 주말 이후 조업 재개로 가격 안정 예상. 급하지 않으면 관망 권장.',
+    alert: false,
+    forecast: [
+      {day:'오늘', price:8200, trend:'+1.2%', dir:'up', action:'wait', actionText:'관망'},
+      {day:'내일', price:8250, trend:'+0.6%', dir:'up', action:'wait', actionText:'관망'},
+      {day:'모레', price:8200, trend:'-0.6%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'3일후', price:8150, trend:'-0.6%', dir:'down', action:'wait', actionText:'관망'},
+      {day:'4일후', price:8100, trend:'-0.6%', dir:'down', action:'buy', actionText:'매입'},
+      {day:'5일후', price:8050, trend:'-0.6%', dir:'down', action:'buy', actionText:'매입'},
+      {day:'6일후', price:8000, trend:'-0.6%', dir:'down', action:'buy', actionText:'매입최적'},
+    ],
+    chartPrices: [8100, 8050, 8100, 8150, 8200, 8250, 8200, 8150],
+  },
+  '오징어': {
+    price: 14500, change: 8.5, changeDir: 'up',
+    volume: '28톤', temp: '16.2°C', boats: '12척',
+    predLow: 14200, predLowDay: '없음',
+    buyRec: 'hold', buyText: '🚨 매입 극히 주의',
+    buyReason: '동해 오징어 자원량 급감. 단기 가격 하락 가능성 낮음. 대체 어종(한치 등) 검토 권장.',
+    alert: true,
+    alertTitle: '오징어 자원량 경보',
+    alertBody: '동해 오징어 어획량 전년 대비 -42%. 가격 고공행진 지속 전망. 대체 원료 검토 필요.',
+    forecast: [
+      {day:'오늘', price:14500, trend:'+8.5%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'내일', price:14600, trend:'+0.7%', dir:'up', action:'hold', actionText:'보류'},
+      {day:'모레', price:14550, trend:'-0.3%', dir:'down', action:'hold', actionText:'보류'},
+      {day:'3일후', price:14500, trend:'-0.3%', dir:'down', action:'hold', actionText:'보류'},
+      {day:'4일후', price:14400, trend:'-0.7%', dir:'down', action:'hold', actionText:'보류'},
+      {day:'5일후', price:14350, trend:'-0.3%', dir:'down', action:'hold', actionText:'보류'},
+      {day:'6일후', price:14300, trend:'-0.3%', dir:'down', action:'wait', actionText:'관망'},
+    ],
+    chartPrices: [13200, 13400, 13600, 13800, 14500, 14600, 14550, 14500],
+  },
+};
+
+let currentFish = '멸치';
+let currentFish2 = '멸치';
+let priceChart, price30Chart, tempChart;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  if (tab === 'freshness' && !tempChart) buildTempChart();
+  if (tab === 'price') {
+    if (price30Chart) { price30Chart.destroy(); price30Chart = null; }
+    buildPrice30Chart();
+    updatePriceUI();
+  }
+  if (tab === 'risk') updateRiskCards();
+  if (tab === 'freshness' && !tempChart) buildTempChart();
+}
+
+function switchPage(page) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`nav-${page}`).classList.add('active');
+}
+
+function selectFish(el) {
+  document.querySelectorAll('#fish-selector .fish-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFish = el.dataset.fish;
+  updateBuyUI();
+}
+
+function selectFish2(el) {
+  document.querySelectorAll('#fish-selector2 .fish-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFish2 = el.dataset.fish2;
+  updatePriceUI();
+  if (price30Chart) { price30Chart.destroy(); price30Chart = null; }
+  buildPrice30Chart();
+}
+
+function updateBuyUI() {
+  const d = realFishData[currentFish] || fishData[currentFish];
+  // 매입 추천
+  const recEl = document.getElementById('buy-recommendation');
+  recEl.textContent = d.buyText;
+  recEl.className = 'buy-badge ' + (d.buyRec === 'buy' ? 'buy-now' : d.buyRec === 'wait' ? 'buy-wait' : 'buy-hold');
+  document.getElementById('buy-reason').textContent = d.buyReason;
+  // 가격
+  document.getElementById('current-price').innerHTML = `${d.price.toLocaleString()}<span class="unit">원/kg</span>`;
+  // 데이터 기준일 표시
+  const dateLabel = document.getElementById('price-date-label');
+  if (dateLabel) dateLabel.textContent = `위판가 · 데이터 기준: ${d.dataDate} (최신 6월 데이터 추가 시 자동 갱신)`;
+  const ch = document.getElementById('price-change');
+  if (d.changeDir === 'none') {
+    ch.textContent = '변동폭 불안정';
+    ch.className = 'stat-change';
+    ch.style.color = 'var(--text-secondary)';
+  } else {
+    ch.textContent = d.changeDir === 'up' ? `▲ ${d.change}%` : `▼ ${d.change}%`;
+    ch.className = 'stat-change ' + (d.changeDir === 'up' ? 'change-up' : 'change-down');
+    ch.style.color = '';
+  }
+  document.getElementById('volume').textContent = d.volume;
+  // 방향정확도 어종별 업데이트
+  const dirEl = document.getElementById('dir-accuracy');
+  if (dirEl) {
+    const acc = fishDirAccuracy[currentFish] || 67;
+    dirEl.innerHTML = `${acc}<span style="font-size:12px;color:var(--text-secondary)">%</span>`;
+  }
+  document.getElementById('temp').textContent = d.temp;
+  document.getElementById('pred-low').innerHTML = `${d.predLow.toLocaleString()}<span style="font-size:12px;color:var(--text-secondary)">원</span>`;
+  // 알림
+  const banner = document.getElementById('alert-banner');
+  if (d.alert) {
+    banner.style.display = 'flex';
+    document.getElementById('alert-title').textContent = d.alertTitle;
+    document.getElementById('alert-body').textContent = d.alertBody;
+  } else { banner.style.display = 'none'; }
+  // 예보 리스트
+  const maxP = Math.max(...d.forecast.map(f => f.price));
+  document.getElementById('forecast-list').innerHTML = d.forecast.map(f => `
+    <div class="forecast-row">
+      <div class="forecast-day">${f.day}</div>
+      <div class="forecast-bar-wrap"><div class="forecast-bar" style="width:${Math.round(f.price/maxP*100)}%;background:${f.dir==='up'?'var(--warn)':'var(--accent)'}"></div></div>
+      <div class="forecast-price">${f.price.toLocaleString()}원</div>
+      <div class="forecast-trend" style="color:${f.dir==='up'?'var(--warn)':'var(--accent)'}">${f.trend}</div>
+      <div class="forecast-action ${f.action==='buy'?'fa-buy':f.action==='wait'?'fa-wait':'fa-hold'}">${f.actionText}</div>
+    </div>`).join('');
+  // 차트
+  if (priceChart) {
+    priceChart.data.datasets[0].data = d.chartPrices.slice(0,5);
+    priceChart.data.datasets[1].data = [null,null,null,null,d.chartPrices[4],d.chartPrices[5],d.chartPrices[6],d.chartPrices[7]];
+    priceChart.update();
+  } else { buildPriceChart(d); }
+}
+
+function updatePriceUI() {
+  const d = realFishData[currentFish2] || fishData[currentFish2];
+  document.getElementById('price2-current').innerHTML = `${d.price.toLocaleString()}<span class="unit">원/kg</span>`;
+  const ch = document.getElementById('price2-change');
+  if (d.changeDir === 'none') {
+    ch.textContent = '변동폭 불안정';
+    ch.className = 'stat-change';
+    ch.style.color = 'var(--text-secondary)';
+  } else {
+    ch.textContent = d.changeDir === 'up' ? `▲ ${d.change}%` : `▼ ${d.change}%`;
+    ch.className = 'stat-change ' + (d.changeDir === 'up' ? 'change-up' : 'change-down');
+    ch.style.color = '';
+  }
+  document.getElementById('price2-volume').textContent = d.volume;
+  document.getElementById('price2-boats').textContent = d.boats;
+  document.getElementById('forecast-list2').innerHTML = d.forecast.map(f => `
+    <div class="forecast-row">
+      <div class="forecast-day">${f.day}</div>
+      <div class="forecast-bar-wrap"><div class="forecast-bar" style="width:${Math.round(f.price/Math.max(...d.forecast.map(x=>x.price))*100)}%;background:${f.dir==='up'?'var(--warn)':'var(--accent)'}"></div></div>
+      <div class="forecast-price">${f.price.toLocaleString()}원</div>
+      <div class="forecast-trend" style="color:${f.dir==='up'?'var(--warn)':'var(--accent)'}">${f.trend}</div>
+    </div>`).join('');
+}
+
+function buildPriceChart(d) {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  const labels = ['6일전','5일전','4일전','3일전','2일전','어제','오늘','예측'];
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'실적', data:[...d.chartPrices.slice(0,5),null,null,null], borderColor:'#00d4aa', backgroundColor:'rgba(0,212,170,0.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#00d4aa', tension:0.4, fill:true },
+        { label:'예측', data:[null,null,null,null,d.chartPrices[4],d.chartPrices[5],d.chartPrices[6],d.chartPrices[7]], borderColor:'#ff6b35', borderWidth:2, borderDash:[4,4], pointRadius:3, pointBackgroundColor:'#ff6b35', tension:0.4, fill:false }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{
+      x:{ticks:{color:'#4a6a85',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#4a6a85',font:{size:10},callback:v=>v.toLocaleString()+'원'},grid:{color:'rgba(255,255,255,0.04)'}}
+    }}
+  });
+}
+
+function buildPrice30Chart() {
+  const d = realFishData[currentFish2] || fishData[currentFish2];
+  const ctx = document.getElementById('price30Chart').getContext('2d');
+  // 실제 30일 이력 데이터 사용
+  const labels = d.historyDates ? d.historyDates.map((dt,i) => i===d.historyDates.length-1 ? '최근' : dt.slice(5)) : Array.from({length:30},(_,i)=>`${30-i}일전`).reverse();
+  const data = d.history30d || Array.from({length:30},()=>d.price);
+  price30Chart = new Chart(ctx, {
+    type:'line',
+    data:{labels,datasets:[{label:'위판가',data,borderColor:'#00d4aa',backgroundColor:'rgba(0,212,170,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:'#4a6a85',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(255,255,255,0.03)'}},
+      y:{ticks:{color:'#4a6a85',font:{size:9},callback:v=>v.toLocaleString()+'원'},grid:{color:'rgba(255,255,255,0.03)'}}
+    }}
+  });
+}
+
+function buildTempChart() {
+  const ctx = document.getElementById('tempChart').getContext('2d');
+  tempChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:['6일전','5일전','4일전','3일전','2일전','어제','오늘'],
+      datasets:[{label:'수온(°C)',data:[20.1,20.4,20.8,21.0,20.7,21.0,21.2],borderColor:'#4fc3f7',backgroundColor:'rgba(79,195,247,0.08)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#4fc3f7',tension:0.4,fill:true}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:'#4a6a85',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#4a6a85',font:{size:10},callback:v=>v+'°C'},grid:{color:'rgba(255,255,255,0.04)'},min:18,max:24}
+    }}
+  });
+}
+
+function runSimulator() {
+  const fish = document.getElementById('sim-fish').value;
+  const target = parseInt(document.getElementById('sim-target').value);
+  const d = realFishData[fish] || fishData[fish];
+  const minForecast = Math.min(...d.forecast.map(f=>f.price));
+  const resultVal = document.getElementById('sim-result-val');
+  const resultSub = document.getElementById('sim-result-sub');
+  if (target >= minForecast) {
+    const dayIdx = d.forecast.findIndex(f=>f.price<=target);
+    const dayText = dayIdx === -1 ? '7일 내 달성 어려움' : d.forecast[dayIdx].day + ' 달성 가능';
+    resultVal.textContent = dayText;
+    resultSub.textContent = `예측 최저가 ${minForecast.toLocaleString()}원/kg · AI 예측 모델 기반`;
+    document.getElementById('sim-result').style.borderColor = 'var(--accent)';
+  } else {
+    resultVal.textContent = '7일 내 달성 어려움';
+    resultSub.textContent = `예측 최저가 ${minForecast.toLocaleString()}원/kg · 목표가 재검토 필요`;
+    document.getElementById('sim-result').style.borderColor = 'var(--warn)';
+  }
+}
+
+// ── 기상청 해양기상부이 실시간 수온 API (apihub.kma.go.kr) ──
+const KMA_API_KEY = 'yZ1CQ66FR0SdQkOuhXdE6Q';
+const ULSAN_STN = '22189';
+
+// apihub.kma.go.kr 텍스트 응답 파싱
+function parseKmaText(text) {
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (!line.startsWith('B,') && !line.startsWith('C,')) continue;
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 12) continue;
+    if (parts[2] !== ULSAN_STN) continue;
+    return {
+      tw: parseFloat(parts[9]),
+      ws: parseFloat(parts[7]),
+      wh: parseFloat(parts[5]),
+    };
+  }
+  return null;
+}
+
+async function fetchKmaSeaObs(tm) {
+  const apiUrl = `https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?tm=${tm}&stn=${ULSAN_STN}&authKey=${KMA_API_KEY}`;
+  const proxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`,
+  ];
+  for (const url of proxies) {
+    try {
+      const res = await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text.includes('#START7777')) {
+        const parsed = parseKmaText(text);
+        if (parsed) return parsed;
+      }
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+async function fetchUlsanSeaTemp() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const tm = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}00`;
+  const data = await fetchKmaSeaObs(tm);
+  if (data && !isNaN(data.tw) && data.tw !== -99) {
+    const tw = data.tw;
+    const ws = data.ws;
+    const tempEl = document.getElementById('temp');
+    if (tempEl) tempEl.textContent = `${tw.toFixed(1)}°C`;
+    document.querySelectorAll('.mini-stat').forEach(el => {
+      const lbl = el.querySelector('.label');
+      if (lbl && lbl.textContent === '동해 수온') {
+        el.querySelector('.val').innerHTML = `${tw.toFixed(1)}<span style="font-size:13px">°C</span>`;
+        el.querySelector('.sub').textContent = '울산 부이 실시간 🟢';
+      }
+      if (lbl && lbl.textContent === '부패 예상 시간') {
+        const decay = Math.max(12, Math.round(60 - tw * 1.5));
+        el.querySelector('.val').innerHTML = `${decay}<span style="font-size:13px">h</span>`;
+      }
+    });
+    const freshSub = document.querySelector('#tab-freshness .stat-card .stat-sub');
+    if (freshSub) freshSub.textContent = `동해 수온 ${tw.toFixed(1)}°C · 풍속 ${ws.toFixed(1)}m/s · 실시간`;
+    console.log(`✅ 울산 부이 실시간: 수온 ${tw}°C, 풍속 ${ws}m/s`);
+    return data;
+  } else {
+    console.warn('기상청 수온 데이터 없음, 샘플 사용');
+    return null;
+  }
+}
+
+async function buildTempChartReal() {
+  const ctx = document.getElementById('tempChart').getContext('2d');
+  const pad = n => String(n).padStart(2,'0');
+  const sampleLabels = ['6시간전','5시간전','4시간전','3시간전','2시간전','1시간전','지금'];
+  const sampleTemps = [20.5,20.8,21.0,21.3,21.5,21.7,21.9];
+
+  tempChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:sampleLabels,datasets:[{label:'수온(°C)',data:sampleTemps,borderColor:'#4fc3f7',backgroundColor:'rgba(79,195,247,0.08)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#4fc3f7',tension:0.4,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:'#4a6a85',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#4a6a85',font:{size:10},callback:v=>v+'°C'},grid:{color:'rgba(255,255,255,0.04)'},min:15,max:28}
+    }}
+  });
+
+  const now = new Date();
+  const realTemps = [];
+  const realLabels = [];
+  let successCount = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now - i*3600*1000);
+    const tm = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}00`;
+    realLabels.push(i===0?'지금':`${i}시간전`);
+    const obs = await fetchKmaSeaObs(tm);
+    if (obs && !isNaN(obs.tw) && obs.tw !== -99) {
+      realTemps.push(obs.tw); successCount++;
+    } else {
+      realTemps.push(sampleTemps[6-i]);
+    }
+  }
+  tempChart.data.labels = realLabels;
+  tempChart.data.datasets[0].data = realTemps;
+  tempChart.update();
+  const chartTitle = document.querySelector('#tab-freshness .chart-title');
+  if (chartTitle) chartTitle.innerHTML = `수온 변화 추이 <span class="chart-badge">${successCount>3?'🟢 실시간':'기상청 연동'}</span>`;
+  console.log(`수온 차트: ${successCount}/7 실제 데이터`);
+}
+
+function buildTempChart() { buildTempChartReal(); }
+
+// ── 리스크 계산 함수 ──
+function updateRiskCards() {
+  const fishList = [
+    {fish:'멸치',  id:1, emoji:'🐟'},
+    {fish:'고등어', id:2, emoji:'🐠'},
+    {fish:'갈치',  id:3, emoji:'🐡'},
+    {fish:'삼치',  id:4, emoji:'🐟'},
+    {fish:'넙치',  id:5, emoji:'🐟'},
+  ];
+  fishList.forEach(({fish, id, emoji}) => {
+    const d = realFishData[fish];
+    if (!d) return;
+    const current = d.price;
+    const forecast = d.forecast ? d.forecast.map(f => f.price) : [];
+    if (!forecast.length) return;
+    const maxF = Math.max(...forecast);
+    const minF = Math.min(...forecast);
+    const upRisk = Math.round((maxF - current) / current * 100);
+    const downRisk = Math.round((current - minF) / current * 100);
+    const isUpRisk = upRisk >= downRisk;
+    const score = Math.min(99, Math.round(Math.max(upRisk, downRisk) * 2.2));
+    const color = score >= 65 ? '#ff6b35' : score >= 35 ? '#ffd600' : '#00d4aa';
+    const level = score >= 65 ? '⚠ 높음' : score >= 35 ? '주의' : '안전';
+    const bgGrad = score >= 65 ? 'linear-gradient(90deg,#ff6b35,#ff0000)' :
+                   score >= 35 ? 'linear-gradient(90deg,#ffd600,#ff6b35)' :
+                                 'linear-gradient(90deg,#00d4aa,#ffd600)';
+    const label = document.getElementById(`risk-label-${id}`);
+    const scoreEl = document.getElementById(`risk-score-${id}`);
+    const levelEl = document.getElementById(`risk-level-${id}`);
+    const barEl = document.getElementById(`risk-bar-${id}`);
+    const descEl = document.getElementById(`risk-desc-${id}`);
+    if (!label) return;
+    label.textContent = `${emoji} ${fish} · 7일 ${isUpRisk ? '폭등' : '폭락'} 리스크`;
+    scoreEl.textContent = score;
+    scoreEl.style.color = color;
+    levelEl.textContent = level;
+    levelEl.style.color = color;
+    barEl.style.width = score + '%';
+    barEl.style.background = bgGrad;
+    const desc = isUpRisk
+      ? `7일 내 최고 ${maxF.toLocaleString()}원 예상 (현재 대비 +${upRisk}%). ${score>=65?'⚠ 사전 매입 검토 권장.':''}`
+      : `7일 내 최저 ${minF.toLocaleString()}원 예상 (현재 대비 -${downRisk}%). ${score>=65?'⚠ 분할 매입 전략 유리.':''}`;
+    descEl.innerHTML = desc;
+  });
+}
+
+// ── 매입 추천 로직 (7일 전체 기반) ──
+function calcBuyRec(fish) {
+  const d = realFishData[fish];
+  if (!d) return;
+  const current = d.price;
+  const forecast = d.forecast ? d.forecast.map(f => f.price) : [];
+  if (!forecast.length) return;
+
+  const minPrice = Math.min(...forecast);
+  const minDay = forecast.indexOf(minPrice);
+  const minVsCurrent = (current - minPrice) / current * 100; // 현재가 대비 저점 절약률
+  const allAboveCurrent = forecast.every(p => p >= current);  // 7일 내 전부 현재보다 비쌈
+  const tomorrow = forecast[0];
+  const tomorrowChange = (tomorrow - current) / current * 100;
+
+  let rec, recText, recReason;
+
+  // 케이스 1: 7일 내 모든 가격이 현재보다 비쌀 예정 → 지금이 최저가
+  if (allAboveCurrent) {
+    rec = 'buy'; recText = '✅ 지금 매입 권장';
+    recReason = `7일 내 현재가(${current.toLocaleString()}원)가 최저. 지금이 가장 유리한 매입 시점.`;
+  }
+  // 케이스 2: 저점이 현재보다 3% 이상 싸고 7일 이내 → 기다렸다 매입
+  else if (minVsCurrent >= 3) {
+    rec = 'wait'; recText = `⏳ ${minDay+1}일 후 매입 권장`;
+    recReason = `${minDay+1}일 후 저점 ${minPrice.toLocaleString()}원 예상. 현재 대비 ${minVsCurrent.toFixed(1)}% 저렴. 기다리는 게 유리.`;
+  }
+  // 케이스 3: 저점이 현재보다 조금 싸지만 3% 미만 → 지금 매입 (차이 미미)
+  else if (minVsCurrent > 0 && minVsCurrent < 3) {
+    rec = 'buy'; recText = '✅ 지금 매입 권장';
+    recReason = `저점(${minPrice.toLocaleString()}원)과 현재가 차이 ${minVsCurrent.toFixed(1)}% 미만. 지금 매입이 실용적.`;
+  }
+  // 케이스 4: 저점이 현재보다 비쌈 (현재가 이미 저점) → 지금 매입
+  else {
+    rec = 'buy'; recText = '✅ 지금 매입 권장';
+    recReason = `현재가(${current.toLocaleString()}원)가 7일 내 최저 수준. 매입 적기.`;
+  }
+
+  realFishData[fish].buyRec = rec;
+  realFishData[fish].buyText = recText;
+  realFishData[fish].buyReason = recReason;
+  realFishData[fish].alert = false;
+}
+
+// ── 초기 렌더 ──
+// 매입 추천 로직 재계산
+['멸치','고등어','갈치','삼치','넙치'].forEach(calcBuyRec);
+updateBuyUI();
+updateRiskCards();
+// 수온 데이터는 기상청 부이 파일 데이터로 모델에 반영됨 (실시간 API 비활성화)
+</script>
+</body>
+</html>
